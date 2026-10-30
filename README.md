@@ -67,7 +67,7 @@ some of the stuff you can find:
 ##  How to run it
 
  
-Use github *[pages]("https://aaminanad.github.io/Space-Exploration/") website 
+Use github *[pages]("https://aaminanad.github.io/Space-Exploration/")*website 
  
 
  
