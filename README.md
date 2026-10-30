@@ -1,9 +1,12 @@
-<img width="951" height="404" alt="image" src="https://github.com/user-attachments/assets/bb239539-030b-4624-894b-31104e851d79" />
 #  Space Exploration
  
 ok so this is a little 3D game where you drive a tiny rover around the Moon and find all the stuff humans have left up there. like, actual real stuff. landers, rovers, even some crash sites. 
+
  
 i got the idea from [messenger.abeto.com](https://messenger.abeto.com) (go look at it, it's so pretty) but i wanted to do a **space version** instead of a town one.
+
+<img width="951" height="404" alt="image" src="https://github.com/user-attachments/assets/bb239539-030b-4624-894b-31104e851d79" />
+
  
 ---
  
