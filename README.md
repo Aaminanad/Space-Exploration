@@ -1,4 +1,4 @@
-
+<img width="951" height="404" alt="image" src="https://github.com/user-attachments/assets/bb239539-030b-4624-894b-31104e851d79" />
 #  Space Exploration
  
 ok so this is a little 3D game where you drive a tiny rover around the Moon and find all the stuff humans have left up there. like, actual real stuff. landers, rovers, even some crash sites. 
@@ -61,14 +61,14 @@ some of the stuff you can find:
 - **Odysseus** (USA, tipped over)
 ---
  
-## 💻 How to run it
+##  How to run it
 
  
-Use github *[pages]("//") website 
+Use github *[pages]("https://aaminanad.github.io/Space-Exploration/") website 
  
 
  
-## 🧰 Built with
+##  Built with
  
 - **HTML, CSS, JavaScript**
 - [**Three.js**](https://threejs.org/) for all the 3D stuff
