@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Moon Relics Explorer</title>
+<style>
+:root{--ink:#f4efe6;--dim:#a9b2c8;--panel:rgba(14,18,38,.88);--accent:#ffb454;--line:rgba(255,255,255,.14);color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;background:#070a1c;color:var(--ink);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+#hud{position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top,0px));right:12px;display:flex;justify-content:space-between;gap:10px;pointer-events:none}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+h1{font:700 17px/1.1 Georgia,serif;margin:0 0 4px}
+.sm{font-size:12px;color:var(--dim);line-height:1.4}
+#nav{pointer-events:auto;text-align:right;min-width:170px}
+#arrow{width:46px;height:46px;margin:0 0 4px auto;display:block}
+button{font:inherit;cursor:pointer;color:#1a1204;background:var(--accent);border:0;border-radius:999px;padding:8px 14px;font-weight:700}
+button.g{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+#card{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translate(-50%,130%);width:min(460px,calc(100vw - 24px));transition:transform .35s cubic-bezier(.2,.9,.3,1);max-height:60vh;overflow:auto;z-index:5}
+#card.on{transform:translate(-50%,0)}
+#card h2{font:700 22px/1.15 Georgia,serif;margin:0 0 6px}
+#card dl{margin:10px 0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+#card dt{color:var(--dim)}#card dd{margin:0}
+#card p{margin:8px 0;font-size:14px;line-height:1.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+#hint{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);pointer-events:none;text-align:center;width:max-content;max-width:90vw}
+#pad{position:fixed;left:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:none;grid-template-columns:repeat(3,52px);gap:6px}
+#pad button{height:52px;padding:0;font-size:20px;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+@media (pointer:coarse){#pad{display:grid}#hint{display:none}}
+@media (max-width:560px){#hud{flex-direction:column}#nav{text-align:left}#arrow{margin:0 0 4px 0}}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="box"><h1>Moon Relics</h1><div class="sm" id="count">Visited 0</div></div>
+  <div class="box" id="nav"><svg id="arrow" viewBox="-25 -25 50 50"><circle r="22" fill="none" stroke="rgba(255,255,255,.2)"/><path id="ap" d="M0-17 L9 10 L0 5 L-9 10Z" fill="#ffb454"/></svg><div class="sm" id="tgt">Pick a relic or press Next relic</div><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="g" id="snd">Sound on</button><button id="next">Next relic</button></div></div>
+</div>
+<div class="box sm" id="hint">Drive with W A S D or arrow keys · Shift to boost · Click a relic to read its story</div>
+<div id="pad"><span></span><button data-k="w" aria-label="Forward">&#9650;</button><span></span><button data-k="a" aria-label="Left">&#9664;</button><button data-k="s" aria-label="Back">&#9660;</button><button data-k="d" aria-label="Right">&#9654;</button></div>
+<div class="box" id="card" role="dialog" aria-live="polite"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+const R=100, D2R=Math.PI/180;
+const RELICS=[
+{id:'luna2',n:'Luna 2',t:'probe',c:0xc9cfd8,d:'13 Sep 1959',y:1959,lat:29.1,lon:0,who:'USSR',place:'Near Palus Putredinis, east of Mare Imbrium',st:'Crashed on purpose',txt:'The first human-made object to touch another world. It was never meant to land softly: it hit the surface at high speed, leaving only scattered fragments.'},
+{id:'luna9',n:'Luna 9',t:'probe',c:0xd9c27a,d:'3 Feb 1966',y:1966,lat:7.1,lon:-64.4,who:'USSR',place:'Oceanus Procellarum',st:'Battery ran out after about 3 days',txt:'First spacecraft to land softly on the Moon. Its petals opened and it sent the first photos from the surface.'},
+{id:'surv1',n:'Surveyor 1',t:'tripod',c:0xdddddd,d:'2 Jun 1966',y:1966,lat:-2.5,lon:-43.2,who:'USA',place:'Near Flamsteed crater, Oceanus Procellarum',st:'Went silent in 1967',txt:'America\u2019s first soft landing. It sent back over 11,000 photos and showed the surface could hold up a heavy lander.'},
+{id:'apollo11',n:'Apollo 11 Eagle (Tranquility Base)',t:'lander',c:0xe0b040,d:'20 Jul 1969',y:1969,lat:0.67,lon:23.47,who:'USA',place:'Mare Tranquillitatis',st:'Descent stage left behind',txt:'Armstrong and Aldrin left the descent stage, a flag, science gear and a plaque reading \u201Cwe came in peace for all mankind\u201D. Footprints remain, since there is no wind to erase them.'},
+{id:'apollo12',n:'Apollo 12 Intrepid',t:'lander',c:0xe0b040,d:'19 Nov 1969',y:1969,lat:-3.01,lon:-23.42,who:'USA',place:'Oceanus Procellarum (Ocean of Storms)',st:'Descent stage left behind',txt:'Landed only about 180 m from Surveyor 3. The crew walked over and took parts of it home to study how the Moon had aged them.'},
+{id:'luna17',n:'Lunokhod 1',t:'rover',c:0xb8c4a0,d:'17 Nov 1970',y:1970,lat:38.24,lon:-35.0,who:'USSR',place:'Mare Imbrium',st:'Lost contact in Sep 1971',txt:'The first robotic rover on another world. It drove over 10 km and sent 20,000+ photos. A NASA orbiter spotted it again in 2010.'},
+{id:'apollo14',n:'Apollo 14 Antares',t:'lander',c:0xe0b040,d:'5 Feb 1971',y:1971,lat:-3.65,lon:-17.47,who:'USA',place:'Fra Mauro highlands',st:'Descent stage left behind',txt:'Shepard hit golf balls here with a makeshift club. They are still out there, along with a cart for hauling tools.'},
+{id:'lrv15',n:'Apollo 15 Lunar Rover',t:'rover',c:0xf2f2f2,d:'2 Aug 1971',y:1971,lat:26.13,lon:3.63,who:'USA',place:'Hadley\u2013Apennine, near Hadley Rille',st:'Parked for good',txt:'The first crewed car on the Moon was left at the end of the mission with its camera aimed at the lift-off. A tiny aluminium sculpture, the Fallen Astronaut, was left nearby.'},
+{id:'apollo16',n:'Apollo 16 Orion',t:'lander',c:0xe0b040,d:'23 Apr 1972',y:1972,lat:-8.97,lon:15.5,who:'USA',place:'Descartes Highlands',st:'Descent stage and rover left behind',txt:'Young and Duke drove the rover about 26 km. Duke left a family photo on the surface, sealed in plastic.'},
+{id:'apollo17',n:'Apollo 17 Challenger',t:'lander',c:0xe0b040,d:'14 Dec 1972',y:1972,lat:20.19,lon:30.77,who:'USA',place:'Taurus\u2013Littrow valley',st:'Last crewed landing; gear left behind',txt:'The last humans left the Moon here. A plaque on the lander marks the end of the first phase of lunar exploration.'},
+{id:'luna21',n:'Lunokhod 2',t:'rover',c:0xb8c4a0,d:'15 Jan 1973',y:1973,lat:25.83,lon:30.92,who:'USSR',place:'Le Monnier crater',st:'Stopped in mid 1973',txt:'It drove roughly 39 km in four months, farther than any other rover on the Moon for decades.'},
+{id:'yutu',n:'Chang\u2019e 3 and Yutu',t:'rover',c:0xe8d8c0,d:'14 Dec 2013',y:2013,lat:44.12,lon:-19.51,who:'China',place:'Mare Imbrium, near Sinus Iridum',st:'Rover immobilised in 2014',txt:'The first soft landing since 1976. The \u201CJade Rabbit\u201D rover got stuck after a few weeks but kept sending data.'},
+{id:'yutu2',n:'Chang\u2019e 4 and Yutu-2',t:'rover',c:0xe8d8c0,d:'3 Jan 2019',y:2019,lat:-45.46,lon:177.59,who:'China',place:'Von K\u00E1rm\u00E1n crater, far side',st:'Operated far beyond its planned life',txt:'The first landing on the far side of the Moon. A relay satellite passes its signals back to Earth.'},
+{id:'beresheet',n:'Beresheet',t:'crash',c:0x8a8f9c,d:'11 Apr 2019',y:2019,lat:32.6,lon:19.3,who:'Israel (SpaceIL)',place:'Mare Serenitatis',st:'Crashed during landing',txt:'The first privately built craft to attempt a lunar landing. An engine failed near the end, and it hit the surface hard.'},
+{id:'vikram',n:'Chandrayaan-3 Vikram and Pragyan',t:'rover',c:0xf0e0e0,d:'23 Aug 2023',y:2023,lat:-69.37,lon:32.32,who:'India',place:'Near the south pole',st:'Put to sleep as lunar night fell',txt:'India became the fourth nation to land softly on the Moon and the first near the south pole. The rover drove about 100 m.'},
+{id:'slim',n:'SLIM',t:'lander',c:0xf5f0d0,d:'19 Jan 2024',y:2024,lat:-13.3,lon:25.25,who:'Japan',place:'Near Shioli crater',st:'Landed upside down but still worked',txt:'It touched down very close to its target, one of the most precise lunar landings so far, though it ended up on its nose.'},
+{id:'odysseus',n:'Odysseus (IM-1)',t:'lander',c:0xcfd8e8,d:'22 Feb 2024',y:2024,lat:-80.13,lon:1.44,who:'USA (Intuitive Machines)',place:'Malapert A, near the south pole',st:'Tipped on its side and ran out of power',txt:'The first US landing since Apollo 17 and the first by a private company. It caught a foot on a slope and tipped over, but still sent data.'},
+{id:'surv3',n:'Surveyor 3',t:'tripod',c:0xdddddd,d:'20 Apr 1967',y:1967,lat:-3.02,lon:-21.0,who:'USA',place:'Ocean of Storms, inside a small crater (drawn a little farther from Apollo 12 here so you can click both)',st:'Visited by Apollo 12 astronauts in 1969',txt:'In 1969 the Apollo 12 crew walked to this probe and cut off its camera and scoop. They brought the parts back so scientists could see how years on the Moon affect hardware.'},
+{id:'change5',n:'Chang\u2019e 5',t:'lander',c:0xe8d8c0,d:'1 Dec 2020',y:2020,lat:43.06,lon:-51.92,who:'China',place:'Near Mons R\u00FCmker, Oceanus Procellarum',st:'Lander left behind after the sample return',txt:'It scooped up about 1.7 kg of lunar soil, launched an ascent module and sent the samples to Earth. The lander stayed on the surface.'},
+{id:'ch2',n:'Chandrayaan-2 Vikram',t:'crash',c:0xe0d0d0,d:'7 Sep 2019',y:2019,lat:-70.88,lon:22.78,who:'India',place:'South polar region',st:'Crashed during the final descent',txt:'Contact was lost in the last couple of kilometres. An orbiter later photographed the debris, and the lesson helped Chandrayaan-3 land in 2023.'}
+];
+RELICS.sort((a,b)=>a.y-b.y);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+document.body.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x070a1c);
+const cam=new THREE.PerspectiveCamera(55,1,.1,3000);
+scene.add(new THREE.HemisphereLight(0xbfd0ff,0x40364a,.8));
+const sun=new THREE.DirectionalLight(0xfff0d6,1.2); sun.position.set(300,200,250); scene.add(sun);
+
+{const g=new THREE.BufferGeometry(),p=[];for(let i=0;i<1400;i++){const u=Math.random()*2-1,t=Math.random()*6.283,r=Math.sqrt(1-u*u);p.push(r*Math.cos(t)*1200,u*1200,r*Math.sin(t)*1200)}
+g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:2.2,sizeAttenuation:false})))}
+const earth=new THREE.Mesh(new THREE.SphereGeometry(30,24,16),new THREE.MeshStandardMaterial({color:0x4a8fe0,emissive:0x0a2a5a,flatShading:true}));
+earth.position.set(150,260,900);scene.add(earth);
+
+const hash=(x,y,z)=>{const s=Math.sin(x*12.9898+y*78.233+z*37.719)*43758.5453;return s-Math.floor(s)};
+const mg=new THREE.IcosahedronGeometry(R,5), mp=mg.attributes.position, cols=[];
+for(let i=0;i<mp.count;i++){
+ const v=new THREE.Vector3(mp.getX(i),mp.getY(i),mp.getZ(i)).normalize();
+ const mare=Math.sin(v.x*3+1)*Math.sin(v.y*4+2)*Math.sin(v.z*3)+.35*Math.sin(v.x*9)*Math.cos(v.z*8);
+ const h=hash(Math.round(v.x*1e4),Math.round(v.y*1e4),Math.round(v.z*1e4));
+ v.multiplyScalar(R+h*.5);mp.setXYZ(i,v.x,v.y,v.z);
+ const k=(mare>.15?.46:.76)+(h-.5)*.06;
+ cols.push(k,k*.97,k*.93);
+}
+{const n=cols.length/3;for(let i=0;i<n;i+=3){let r=0,g=0,b=0;for(let j=0;j<3;j++){r+=cols[(i+j)*3];g+=cols[(i+j)*3+1];b+=cols[(i+j)*3+2]}for(let j=0;j<3;j++){cols[(i+j)*3]=r/3;cols[(i+j)*3+1]=g/3;cols[(i+j)*3+2]=b/3}}}
+mg.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));mg.computeVertexNormals();
+scene.add(new THREE.Mesh(mg,new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:1})));
+
+const ll=(lat,lon)=>new THREE.Vector3(Math.cos(lat*D2R)*Math.sin(lon*D2R),Math.sin(lat*D2R),Math.cos(lat*D2R)*Math.cos(lon*D2R));
+function orient(o,p,fwd){const up=p.clone().normalize();const f=fwd.clone().sub(up.clone().multiplyScalar(fwd.dot(up))).normalize();const r=new THREE.Vector3().crossVectors(up,f).normalize();
+ o.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(r,up,f));o.position.copy(up.multiplyScalar(R+.45))}
+function randTangent(p){const t=new THREE.Vector3().crossVectors(p,new THREE.Vector3(.3,1,.2).addScalar(Math.random()));if(t.length()<.01)t.set(1,0,0);return t.normalize()}
+
+const rockM=new THREE.MeshStandardMaterial({color:0x8d8a86,flatShading:true});
+for(let i=0;i<70;i++){const p=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize();const s=1+Math.random()*4;
+ const g=new THREE.Group();const rim=new THREE.Mesh(new THREE.RingGeometry(s*.8,s*1.15,14),new THREE.MeshBasicMaterial({color:0xb9b4ac,side:2}));const fl=new THREE.Mesh(new THREE.CircleGeometry(s*.85,14),new THREE.MeshBasicMaterial({color:0x5c5a5c,side:2}));
+ rim.rotation.x=fl.rotation.x=-Math.PI/2;rim.position.y=.2;fl.position.y=.18;g.add(rim,fl);orient(g,p,randTangent(p));g.position.setLength(R+.7);scene.add(g)}
+for(let i=0;i<110;i++){const p=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize();const m=new THREE.Mesh(new THREE.DodecahedronGeometry(.3+Math.random()*.8,0),rockM);m.scale.y=.6;orient(m,p,randTangent(p));scene.add(m)}
+
+const mat=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,flatShading:true,roughness:.7},o||{}));
+const bx=(w,h,d,c,x,y,z,g)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y,z);g.add(m);return m};
+function wheels(g,w,z,r,c){for(const sx of[-1,1])for(const sz of[-1,1]){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.5,10),mat(c||0x2a2a30));m.rotation.z=Math.PI/2;m.position.set(sx*w,r,sz*z);g.add(m)}}
+function build(t,c){const g=new THREE.Group();
+ if(t==='rover'){bx(2.4,.9,3.4,c,0,1.4,0,g);bx(2.6,.2,1.2,0xe4e8ee,0,2,.9,g);wheels(g,1.5,1.1,.7);bx(.08,2,.08,0xdddddd,.8,3,-1,g)}
+ else if(t==='lander'){bx(3,1.8,3,c,0,2.2,0,g);bx(2,1.2,2,0xe9e9ee,0,3.8,0,g);for(const sx of[-1,1])for(const sz of[-1,1]){const l=bx(.2,2.4,.2,0xcccccc,sx*2,1.1,sz*2,g);l.rotation.z=sx*.4;bx(.9,.1,.9,0xcccccc,sx*2.3,.05,sz*2,g)}}
+ else if(t==='tripod'){bx(1.4,1,1.4,c,0,2.2,0,g);bx(.15,3,.15,0xcccccc,0,4,0,g);for(let i=0;i<3;i++){const l=bx(.15,2.4,.15,0xaaaaaa,Math.cos(i*2.1)*1.1,1.1,Math.sin(i*2.1)*1.1,g);l.rotation.z=.4*Math.cos(i*2.1);l.rotation.x=-.4*Math.sin(i*2.1)}}
+ else if(t==='probe'){const s=new THREE.Mesh(new THREE.SphereGeometry(1.1,10,8),mat(c));s.position.y=1.2;g.add(s);for(let i=0;i<4;i++){const p=bx(.1,.1,1.8,0xbbbbbb,Math.cos(i*1.57)*.9,.4,Math.sin(i*1.57)*.9,g);p.rotation.y=-i*1.57}}
+ else{for(let i=0;i<9;i++){const m=bx(.3+Math.random(),.2+Math.random()*.4,.3+Math.random(),i%2?c:0xd9b24a,(Math.random()-.5)*5,.3,(Math.random()-.5)*5,g);m.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3)}}
+ return g}
+
+const items=[],clickables=[];
+RELICS.forEach((r,i)=>{const g=new THREE.Group(),m=build(r.t,r.c);m.scale.setScalar(1.15);g.add(m);
+ const beam=new THREE.Mesh(new THREE.CylinderGeometry(.08,.9,16,8,1,true),new THREE.MeshBasicMaterial({color:0xffb454,transparent:true,opacity:.3,side:2,depthWrite:false}));beam.position.y=9;g.add(beam);
+ const orb=new THREE.Mesh(new THREE.OctahedronGeometry(.9),new THREE.MeshBasicMaterial({color:0xffd58a}));orb.position.y=11;g.add(orb);
+ const hit=new THREE.Mesh(new THREE.CylinderGeometry(3.2,3.2,12,8),new THREE.MeshBasicMaterial({visible:false}));hit.position.y=5;g.add(hit);
+ const p=ll(r.lat,r.lon);orient(g,p,randTangent(p));scene.add(g);
+ g.traverse(o=>{o.userData.idx=i});clickables.push(g);items.push({r,g,orb,beam,pos:p.clone().multiplyScalar(R),seen:false,i})});
+{const a=items.find(x=>x.r.id==='apollo11');const f=new THREE.Group();const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,4),mat(0xeeeeee));pole.position.y=2;f.add(pole);bx(2,1.2,.05,0xe04a4a,1,3.3,0,f);f.position.set(5,0,2);a.g.add(f)}
+
+items.forEach(it=>{const id=it.r.id;if(/^apollo/.test(id)){for(let k=0;k<14;k++){const s=k%2?.3:-.3;bx(.35,.05,.8,0x6a665f,s+Math.sin(k*.6)*.5,-.1,4+k*.95,it.g)}}
+ if(id==='lrv15'){for(let k=0;k<12;k++)for(const s of[-1,1])bx(.3,.04,.9,0x6a665f,s*1.5,-.1,-3-k*1.1,it.g)}});
+const pl=new THREE.Group();{bx(2.2,.8,3,0xf2efe6,0,1.3,0,pl);bx(1.6,.5,1.4,0x3b6fb6,0,1.9,.6,pl);bx(2.4,.1,1.2,0x2a4a8a,0,1.9,-1.1,pl);wheels(pl,1.4,1,.65,0x1d1f28);bx(.08,1.6,.08,0xffb454,.8,2.7,-1,pl);const b=new THREE.Mesh(new THREE.SphereGeometry(.18),mat(0xff5a4a,{emissive:0xff3020}));b.position.set(.8,3.5,-1);pl.add(b)}
+scene.add(pl);
+let P=ll(0.67,12).normalize(),H=new THREE.Vector3(0,1,0).sub(P.clone().multiplyScalar(P.y)).normalize().applyAxisAngle(P,-1.2),speed=0,tgt=-1;
+const keys={};
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;if(e.key.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+document.querySelectorAll('#pad button').forEach(b=>{const k=b.dataset.k;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=1});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>keys[k]=0))});
+
+// rover dust
+const DN=140,dpos=new Float32Array(DN*3),dcol=new Float32Array(DN*3),dvel=[],dage=new Float32Array(DN).fill(9);let dI=0,arrived=-1;
+for(let i=0;i<DN;i++)dvel.push(new THREE.Vector3());
+const dg=new THREE.BufferGeometry();dg.setAttribute('position',new THREE.BufferAttribute(dpos,3));dg.setAttribute('color',new THREE.BufferAttribute(dcol,3));
+const dust=new THREE.Points(dg,new THREE.PointsMaterial({size:1.1,vertexColors:true,transparent:true,opacity:.8,depthWrite:false}));dust.frustumCulled=false;scene.add(dust);
+function puff(){const right=new THREE.Vector3().crossVectors(H,P),side=Math.random()<.5?-1:1,i=dI++%DN,p=P.clone().multiplyScalar(R+.8).addScaledVector(H,-2).addScaledVector(right,side*1.3);dpos[i*3]=p.x;dpos[i*3+1]=p.y;dpos[i*3+2]=p.z;dvel[i].copy(P).multiplyScalar(1.5+Math.random()*2).addScaledVector(H,-speed*.15).addScaledVector(right,side*(.5+Math.random()));dage[i]=0}
+// sound
+let AC,M,eng,engG,engF,muted=false;
+function initAudio(){if(AC){AC.resume();return}try{AC=new(window.AudioContext||window.webkitAudioContext)();M=AC.createGain();M.gain.value=muted?0:1;M.connect(AC.destination);eng=AC.createOscillator();eng.type='sawtooth';eng.frequency.value=40;engF=AC.createBiquadFilter();engF.type='lowpass';engF.frequency.value=150;engG=AC.createGain();engG.gain.value=0;eng.connect(engF);engF.connect(engG);engG.connect(M);eng.start();const dr=AC.createOscillator(),dgn=AC.createGain();dr.type='sine';dr.frequency.value=55;dgn.gain.value=.02;dr.connect(dgn);dgn.connect(M);dr.start()}catch(e){AC=null}}
+function blip(f,d,w){if(!AC||muted)return;const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+(w||0);o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.12,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(M);o.start(t);o.stop(t+d+.05)}
+addEventListener('pointerdown',initAudio);addEventListener('keydown',initAudio);
+const sb=document.getElementById('snd');sb.onclick=()=>{initAudio();muted=!muted;if(M)M.gain.value=muted?0:1;sb.textContent=muted?'Sound off':'Sound on'};
+const card=document.getElementById('card'),tg=document.getElementById('tgt'),cnt=document.getElementById('count'),ap=document.getElementById('ap');
+function setTarget(i){tgt=i;tg.textContent=i<0?'Pick a relic or press Next relic':'Heading to '+RELICS[i].n}
+function updCount(){cnt.textContent='Visited '+items.filter(x=>x.seen).length+' of '+items.length+' relics'}updCount();
+function show(i){const it=items[i],r=it.r;it.seen=true;updCount();
+ const lat=Math.abs(r.lat).toFixed(2)+'\u00B0 '+(r.lat<0?'S':'N'),lon=Math.abs(r.lon).toFixed(2)+'\u00B0 '+(r.lon<0?'W':'E');
+ card.innerHTML='<h2></h2><dl><dt>Left here</dt><dd class="a"></dd><dt>From</dt><dd class="b"></dd><dt>Where</dt><dd class="c"></dd><dt>Coordinates</dt><dd class="e"></dd><dt>Status</dt><dd class="f"></dd></dl><p class="t"></p><div class="row"><button id="go">Next relic</button><button class="g" id="x">Close</button></div>';
+ const q=s=>card.querySelector(s);q('h2').textContent=r.n;q('.a').textContent=r.d;q('.b').textContent=r.who;q('.c').textContent=r.place;q('.e').textContent=lat+', '+lon;q('.f').textContent=r.st;q('.t').textContent=r.txt;
+ card.classList.add('on');blip(523,.35);blip(659,.35,.09);blip(784,.5,.18);q('#x').onclick=()=>card.classList.remove('on');
+ q('#go').onclick=()=>{card.classList.remove('on');setTarget((i+1)%items.length)}}
+document.getElementById('next').onclick=()=>setTarget((tgt+1)%items.length);
+
+const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();
+renderer.domElement.addEventListener('pointerdown',e=>{mouse.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mouse,cam);
+ const h=ray.intersectObjects(clickables,true);if(h.length){show(h[0].object.userData.idx);setTarget(h[0].object.userData.idx)}});
+
+function resize(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+
+const clock=new THREE.Clock(),camPos=new THREE.Vector3(),camUp=new THREE.Vector3(0,1,0),tmp=new THREE.Vector3();let first=true;
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;
+ const boost=keys.shift?2.2:1,fw=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0),tr=(keys.a||keys.arrowleft?1:0)-(keys.d||keys.arrowright?1:0);
+ speed+=(fw*16*boost-speed)*Math.min(1,dt*3);
+ if(tr)H.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(P,tr*dt*2*(speed<-.5?-1:1)));
+ if(Math.abs(speed)>.01){const ax=new THREE.Vector3().crossVectors(P,H).normalize(),q=new THREE.Quaternion().setFromAxisAngle(ax,speed*dt/R);P.applyQuaternion(q).normalize();H.applyQuaternion(q);H.sub(P.clone().multiplyScalar(H.dot(P))).normalize()}
+ orient(pl,P,H);
+ const k=first?1:Math.min(1,dt*4);
+ tmp.copy(P).multiplyScalar(R+10).addScaledVector(H,-17);camPos.lerp(tmp,k);camUp.lerp(P,k).normalize();first=false;
+ cam.position.copy(camPos);cam.up.copy(camUp);cam.lookAt(P.clone().multiplyScalar(R+1).addScaledVector(H,5));
+ items.forEach(it=>{it.orb.rotation.y=t*1.5;it.orb.position.y=11+Math.sin(t*2+it.i)*.5;it.beam.material.opacity=it.i===tgt?.65:(it.seen?.1:.3);it.orb.material.color.set(it.seen?0x9ad0a0:0xffd58a)});
+ if(Math.abs(speed)>3){puff();puff()}
+ for(let i=0;i<DN;i++){if(dage[i]>1.6){dpos[i*3]=dpos[i*3+1]=dpos[i*3+2]=0;continue}dage[i]+=dt;const v=dvel[i],x=dpos[i*3],y=dpos[i*3+1],z=dpos[i*3+2],l=Math.hypot(x,y,z)||1;v.x-=x/l*3*dt;v.y-=y/l*3*dt;v.z-=z/l*3*dt;if(l<R+.6)v.set(0,0,0);dpos[i*3]=x+v.x*dt;dpos[i*3+1]=y+v.y*dt;dpos[i*3+2]=z+v.z*dt;const c=.46+.4*Math.max(0,1-dage[i]/1.6);dcol[i*3]=c;dcol[i*3+1]=c*.97;dcol[i*3+2]=c*.93}
+ dg.attributes.position.needsUpdate=true;dg.attributes.color.needsUpdate=true;
+ if(AC){const s=Math.abs(speed),n=AC.currentTime;engG.gain.setTargetAtTime(Math.min(.05,s/16*.04),n,.1);eng.frequency.setTargetAtTime(40+s*2.2,n,.1);engF.frequency.setTargetAtTime(150+s*10,n,.1)}
+ earth.rotation.y=t*.05;
+ if(tgt>=0){const it=items[tgt],u=it.pos.clone().normalize(),to=u.sub(P.clone().multiplyScalar(u.dot(P))).normalize(),right=new THREE.Vector3().crossVectors(H,P),
+  ang=Math.atan2(to.dot(right),to.dot(H));ap.setAttribute('transform','rotate('+(ang*180/Math.PI)+')');
+  const d=Math.acos(Math.max(-1,Math.min(1,P.dot(it.pos.clone().normalize()))))*R;if(d<9&&arrived!==tgt){arrived=tgt;blip(784,.3);blip(988,.5,.12)}else if(d>=14&&arrived===tgt)arrived=-1;tg.textContent=d<9?'You are here. Click '+it.r.n:'Heading to '+it.r.n+' \u2013 '+Math.round(d)+' m'}
+ renderer.render(scene,cam)}
+loop();
+setTimeout(()=>{const h=document.getElementById('hint');h.style.transition='opacity 1s';h.style.opacity=0},15000);
+})();
+</script>
+</body>
+</html>
