@@ -46,28 +46,11 @@ On mobile just use the arrow buttons in the corner.
  
 ---
  
-## The relics
- 
-some of the stuff you can find:
- 
-- **Luna 2** (1959) – first thing humans ever crashed into the Moon
-- **Luna 9** (1966) – first soft landing
-- **Surveyor 1** and **Surveyor 3** (1966, 1967)
-- **Apollo 11, 12, 14, 16, 17** landers
-- **Apollo 15 Lunar Rover** – the first car on the Moon 🚗
-- **Lunokhod 1 and 2** – robot rovers from the USSR
-- **Yutu and Yutu-2** (China, including the far side!)
-- **Chang'e 5**
-- **Beresheet** (Israel, crashed lol)
-- **Chandrayaan-2** (crashed) and **Chandrayaan-3** (landed!) from India
-- **SLIM** (Japan, landed upside down but still worked)
-- **Odysseus** (USA, tipped over)
----
  
 ##  How to run it
 
  
-Use github [pages]("https://aaminanad.github.io/Space-Exploration/") website 
+Use github [pages](https://aaminanad.github.io/Space-Exploration/) website 
  
 
  
